@@ -1,0 +1,48 @@
+>>> add "The Stranger", Albert Camus, Fiction, 1942
+1. The Stranger, Albert Camus, Fiction, 1942
+
+>>> list
+1. The Stranger, Albert Camus, Fiction, 1942
+
+>>> a
+PARSE ERROR:Invalid command
+>>>
+>>> add "book", Author, Non-Fiction, 2002
+PARSE ERROR:Invalid Author
+
+>>> add "book", Author a, Non-Fiction, 2002
+1. The Stranger, Albert Camus, Fiction, 1942
+2. book, Author a, Non-Fiction, 2002
+
+>>> list
+1. The Stranger, Albert Camus, Fiction, 1942
+2. book, Author a, Non-Fiction, 2002
+
+>>> remove 2
+1. The Stranger, Albert Camus, Fiction, 1942
+
+>>> add book, a a, Fiction, 2000
+PARSE ERROR:Invalid Title syntax
+
+>>> add book, a a, 111, 2000
+PARSE ERROR:Invalid Title syntax
+
+>>> add "book", a a, Fiction, 2000
+1. The Stranger, Albert Camus, Fiction, 1942
+2. book, a a, Fiction, 2000
+
+>>> add "book", a a, 111, 2000
+PARSE ERROR:Invalid Genre
+
+>>> add "book", a a, Fiction, p
+PARSE ERROR:Invalid Year
+
+>>> add "book", a a, Fiction, 10
+PARSE ERROR:Invalid Year
+
+>>> list
+1. The Stranger, Albert Camus, Fiction, 1942
+2. book, a a, Fiction, 2000
+
+>>> remove 1
+1. book, a a, Fiction, 2000
