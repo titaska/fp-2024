@@ -1,3 +1,4 @@
+
 {-# OPTIONS_GHC -Wno-unused-top-binds -Wname-shadowing #-}
 -- A module - a single unit of compilation
 module Lessons.Lesson01 (foo) where

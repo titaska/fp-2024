@@ -1,8 +1,8 @@
 <commands>    ::= "add" <book> 
                 | "remove" <book>
                 | "list" 
-                | "find" <book>
-                | "exit"
+                
+                
 
 <book>        ::= <title> <author> <genre> <year> <book-id>
 <title>       ::= <word> | <title> <word>  

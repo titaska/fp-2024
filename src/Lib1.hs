@@ -3,10 +3,7 @@ module Lib1
     ) where
 
 -- | This function returns a list of words
--- to be autocompleted in your program's repl.
+-- to be autocompleted in your program's REPL.
 completions :: [String]
-completions = ["add",
-                "remove",
-                "list",
-                "find",
-                "exit"]
+completions = ["add", "list", "remove"]
+
