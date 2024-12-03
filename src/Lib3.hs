@@ -49,7 +49,7 @@ instance Show Statements where
 
 
 renderQuery :: Lib2.Query -> String
-renderQuery (Lib2.AddBookQuery (Lib2.BookInfo title author genre)) = "add" ++ title ++ " " ++ author ++ " " ++ show genre 
+renderQuery (Lib2.AddBookQuery (Lib2.BookInfo title author genre)) = "add " ++ title ++ " " ++ author ++ " " ++ show genre 
 
 data Command
   = StatementCommand Statements
