@@ -1,0 +1,48 @@
+>>> add TheStranger AlbertCamus Fiction
+BookInfo "TheStranger" "AlbertCamus" Fiction added.
+>>> remove TheStranger AlbertCamus Fiction
+BookInfo "TheStranger" "AlbertCamus" Fiction removed.
+>>> add a a
+PARSE ERROR:No match
+>>> add a a Fiction
+BookInfo "a" "a" Fiction added.
+>>> add a a a
+PARSE ERROR:No match
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| begin
+| add book author Fiction
+| add books authors Fiction
+| end
+|
+PARSE ERROR:No match
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| begin
+| add books authors Fiction;
+| add book author Fiction
+| add book author Fiction;
+| end
+|
+PARSE ERROR:No match
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| add book author Fiction;
+|
+PARSE ERROR: string is not fully consumed - ;
+
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| begin
+| add book author Fiction;
+| add books authors Fiction;
+| end
+|
+BookInfo "book" "author" Fiction added.
+BookInfo "books" "authors" Fiction added.
+>>> save
+State saved successfully
+>>> load
+BookInfo "books" "authors" Fiction added.
+BookInfo "book" "author" Fiction added.
+BookInfo "a" "a" Fiction added.

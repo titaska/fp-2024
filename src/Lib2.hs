@@ -1,246 +1,201 @@
 {-# LANGUAGE InstanceSigs #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant bracket" #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
+
 module Lib2
-    ( Query(..),
-    parseQuery,
+  ( Query(..),
+    Parser(..),
+    parseString,
+    query,
+    BookInfo(..),
+    BookGenre(..),
     State(..),
     emptyState,
-    stateTransition
-    ) where
+    stateTransition,
+    parseQuery,
+    parseAddBookQuery,
+    parseRemoveBookQuery,
+    parseBookInfo,
+    parseBookGenre,
+  ) where
+    
+import Control.Applicative (Alternative (empty), (<|>), many, optional)
 import qualified Data.Char as C
-import qualified Data.List as L
+
+data Parser a = Parser { runParser :: String -> Either String (a, String) }
+
+instance Functor Parser where
+    fmap :: (a -> b) -> Parser a -> Parser b
+    fmap f functor = Parser $ \input ->
+        case runParser functor input of
+            Left e -> Left e
+            Right (v, r) -> Right (f v, r)
+
+instance Applicative Parser where
+    pure :: a -> Parser a
+    pure a = Parser $ \input -> Right (a, input)
+    (<*>) :: Parser (a -> b) -> Parser a -> Parser b
+    ff <*> fa = Parser $ \input ->
+        case runParser ff input of
+            Left e1 -> Left e1
+            Right (f, r1) -> case runParser fa r1 of
+                                Left e2 -> Left e2
+                                Right (a, r2) -> Right (f a , r2)
+
+instance Alternative Parser where
+    empty :: Parser a
+    empty = Parser $ \input -> Left $ "Could not parse " ++ input
+    (<|>) :: Parser a -> Parser a -> Parser a
+    p1 <|> p2 = Parser $ \inp ->
+        case (runParser p1 inp) of
+            Right r1 -> Right r1
+            Left e1 -> case (runParser p2 inp) of
+                            Right r2 -> Right r2
+                            Left e2 -> Left e2
+
+instance Monad Parser where
+    (>>=) :: Parser a -> (a -> Parser b) -> Parser b
+    ma >>= mf = Parser $ \input ->
+        case runParser ma input of
+            Left e1 -> Left e1
+            Right (a, r1) -> case runParser (mf a) r1 of
+                                Left e2 -> Left e2
+                                Right (b, r2) -> Right (b, r2)
+
+-- Basic Parsers
+
+parseSpace :: Parser Char
+parseSpace = parseChar ' '
+
+parseChar :: Char -> Parser Char
+parseChar c = Parser $ \s -> 
+  case s of
+    [] -> Left "No match"
+    (h:t) -> if c == h 
+             then Right (c, t) 
+             else Left "No match"
+
+parseLetter :: Parser Char
+parseLetter = Parser $ \s -> case s of
+  []       -> Left "No match"
+  (h : t)  -> if C.isLetter h
+                 then Right (h, t)
+                 else Left "No match"
+
+parseDigit :: Parser Char
+parseDigit = Parser $ \s -> case s of
+  []       -> Left "No match"
+  (h : t)  -> if C.isDigit h
+                 then Right (h, t)
+                 else Left "No match"
+
+parseString :: String -> Parser String
+parseString [] = return []
+parseString (c:cs) = do
+    _ <- parseChar c
+    rest <- parseString cs
+    return (c : rest)
+
+many1 :: Parser a -> Parser [a]
+many1 p = do
+  first <- p
+  rest  <- many p
+  return (first : rest)  
+
+-- Data Types
+data Query
+    =  AddBookQuery BookInfo
+    | RemoveBookQuery BookInfo
+    deriving (Eq, Show)
+
+data BookInfo = BookInfo Title Author BookGenre 
+    deriving (Eq, Show)
+
+type Title = String
+type Author = String
+
+data BookGenre = Fantasy | Detective | Scientific | Dictionary | Fiction 
+    deriving (Show, Read, Eq)
 
 
-validGenres :: [String]
-validGenres = [
-    "Fiction",
-    "Non-Fiction",
-    "Mystery",
-    "Thriller",
-    "Romance",
-    "Sci-Fi",
-    "Fantasy",
-    "Biography"
-    ]
+type Name = String
 
--- | An entity which represets user input.
--- It should match the grammar from Laboratory work #1.
--- Currently it has no constructors but you can introduce
--- as many as needed.
-data Query = 
-    AddQuery String |
-    RemoveQuery String |
-    ListQuery
 
--- | The instances are needed basically for tests
-instance Eq Query where
-    (==) ListQuery ListQuery = True
-    (==) (AddQuery a) (AddQuery b) = a == b
-    (==) (RemoveQuery a) (RemoveQuery b) = a == b
-    (==) _ _ = False
+query :: Parser Query
+query =
+        parseAddBookQuery
+    <|> parseRemoveBookQuery
+   
 
-instance Show Query where
-    show (AddQuery a)       = show a
-    show (RemoveQuery a)    = show a
-    show ListQuery          = show "List:"
 
--- | Parses user's input.
--- The function must have tests.
 parseQuery :: String -> Either String Query
-parseQuery str = 
-    case parseCmd str of
-        Left(eCmd) -> Left(eCmd)
-        Right(rCmd) -> 
-			case parseBook rCmd of
-				Left(eBook) -> Left(eBook)
-				Right(rBook) -> Right(rBook)
+parseQuery s =
+  case runParser query s of
+    Left err -> Left err
+    Right (q, r) -> if null r then Right q else Left ("Unrecognized characters:" ++ r)
+
+-- Query Parsers
+
+parseAddBookQuery :: Parser Query
+parseAddBookQuery = do
+    _ <- parseString "add "
+    book <- parseBookInfo
+    return $ AddBookQuery book
+
+parseRemoveBookQuery :: Parser Query
+parseRemoveBookQuery = do
+    _ <- parseString "remove "
+    book <- parseBookInfo
+    return $ RemoveBookQuery book
+
+parseBookInfo :: Parser BookInfo
+parseBookInfo = do
+  title <- parseTitle
+  _ <- parseSpace
+  author <- parseAuthor
+  _ <- parseSpace
+  genre <- parseBookGenre
+  return $ BookInfo title author genre
+
+parseTitle :: Parser Title
+parseTitle = many1 parseLetter
+
+parseAuthor :: Parser Author
+parseAuthor = many1 parseLetter
+
+parseBookGenre :: Parser BookGenre
+parseBookGenre = parseData ["Fantasy", "Detective", "Scientific", "Dictionary", "Fiction"]
+
+parseData :: (Read a) => [String] -> Parser a
+parseData = foldr (\str acc -> parseString str *> return (read str) <|> acc) empty
 
 
-parseComma :: String -> Either String String
-parseComma str =
-	let
-		rest1 = L.takeWhile C.isSpace str
-		rest2 = drop (length rest1) str
-		comma = L.take 1 rest2
-		rest3 = drop 1 rest2
-		rest4 = L.takeWhile C.isSpace rest3
-		rest = drop (length rest4) rest3
-	in
-		if comma == "," then Right rest
-		else Left "Invalid separator"
+-- States and State Transitions
 
-parseCmd :: String -> Either String Query
-parseCmd str =
-        let
-                cmd = L.takeWhile C.isAlpha str
-                rest1 = drop (length cmd) str
-                rest2 = L.takeWhile C.isSpace rest1
-                rest = drop (length rest2) rest1
-        in
-                if      cmd == "add"    then Right (AddQuery rest)
-                else if cmd == "remove" then Right (RemoveQuery rest)
-                else if cmd == "list"   then Right (ListQuery)
-                else                    Left "Invalid command"
+data State = State { books :: [BookInfo]}
 
-
---book parser
-parseBook :: Query -> Either String Query
-parseBook ListQuery = Right ListQuery
-parseBook (AddQuery str) =
-    case parseTitle str of
-        Left e1 -> Left e1
-        Right (title, r1) ->
-            case parseAuthor r1 of
-                Left e2 -> Left e2
-                Right (author, r2) ->
-                    case parseGenre r2 of
-                        Left e3 -> Left e3
-                        Right (genre, r3) ->
-                            case parseYear r3 of
-                                Left e4 -> Left e4
-                                Right (year, _) ->
-                                    Right (AddQuery $ title ++ ", " ++ author ++ ", " ++ genre ++ ", " ++ year)
-									
-parseBook (RemoveQuery str) =
-	case parseId str of
-		Left(e1) -> Left(e1)
-		Right(r1) -> Right(RemoveQuery r1)
-
-
---title parser
-parseTitle :: String -> Either String (String, String)
-parseTitle str = parseTitle' str []
-
-parseTitle' :: String -> String -> Either String (String, String)
-parseTitle' str [] = 
-	let
-		titleStart = L.take 1 str
-		rest1 = drop 1 str
-		title = L.takeWhile (/= '\"') rest1
-		rest2 = drop (length title) rest1
-		rest3 = L.takeWhile C.isSpace rest2
-		rest = drop (length rest3) rest2
-		titleEnd = L.take 1 rest
-	in
-		if (titleStart == "\"" && titleEnd == "\"") then parseTitle' rest title
-		else Left "Invalid Title syntax"
-parseTitle' str acc = 
-	let
-		titleStart = L.take 1 str
-		rest1 = drop 1 str
-		title = L.takeWhile (/= '\"') rest1
-		rest2 = drop (length title) rest1
-		rest3 = L.takeWhile C.isSpace rest2
-		rest = drop (length rest3) rest2
-		titleEnd = L.take 1 rest
-	in
-		if (titleStart == "\"" && titleEnd == "\"") then parseTitle' rest (acc++"\""++title)
-		else Right (acc, title)
-
---Author parser
-parseAuthor :: String -> Either String (String, String)
-parseAuthor str =
-	case parseComma str of
-		Left(e1) -> Left(e1)
-		Right(r1) -> 
-			let
-				name = L.takeWhile C.isAlpha r1
-				rest1 = drop (length name) r1
-				rest2 = L.takeWhile C.isSpace rest1
-				rest3 = drop (length rest2) rest1
-				surname = L.takeWhile C.isAlpha rest3
-				rest = drop (length surname) rest3
-			in
-				if (name /= [] && surname /= []) then Right(name++" "++surname, rest)
-				else Left "Invalid Author"
-
---Gernre parser
-parseGenre :: String -> Either String (String, String)
-parseGenre str = 
-	case parseComma str of
-		Left(e1) -> Left(e1)
-		Right(r1) ->
-			let
-				genre = L.takeWhile (\c -> C.isAlpha c || c == '-') r1
-				rest = drop (length genre) r1
-			in
-				if genre `elem` validGenres then Right (genre, rest)
-				else Left "Invalid Genre"
-
---Year parser
-parseYear :: String -> Either String (String, String)
-parseYear str =
-    case parseComma str of
-        Left e1 -> Left e1
-        Right r1 -> 
-            let
-                year = take 4 r1
-                rest = drop 4 r1
-            in
-                if length year == 4 && all C.isDigit year
-                    then Right (year, dropWhile C.isSpace rest)
-                    else Left "Invalid Year"
-
-
---Id parser
-parseId :: String -> Either String String
-parseId str =
-	let
-        r1 = L.takeWhile C.isSpace str
-        r2 = drop (length r1) str
-        id = L.takeWhile C.isNumber r2
-	in
-        if id /= [] then Right id
-        else Left "Invalid ID"
-
-
--- | An entity which represents your program's state.
--- Currently it has no constructors but you can introduce
--- as many as needed.
-data State = State [Query]
-instance Show State where
-    show (State queries) = 
-        let formatQuery (AddQuery a) = a
-            formatQuery (RemoveQuery a) = a
-            formatQuery ListQuery = "List:"
-        in unlines (map formatQuery queries)
-
-
--- | Creates an initial program's state.
--- It is called once when the program starts.
 emptyState :: State
 emptyState = State []
 
--- | Updates a state according to a query.
--- This allows your program to share the state
--- between repl iterations.
--- Right contains an optional message to print and
--- an updated program's state.
 stateTransition :: State -> Query -> Either String (Maybe String, State)
-stateTransition (State old) q = 
-    case q of
-        ListQuery ->
-            Right (Just (show (State old)), State old)
-        AddQuery a ->
-            let
-                id = AddQuery ((show (length old + 1)) ++ ". " ++ a)
-                new = State (old ++ [id])  
-            in
-                Right (Just (show new), new)
-        RemoveQuery idStr ->
-            let
-                id = read idStr :: Int
-                getId (AddQuery str) = takeWhile (/= '.') str
-                matchId x = getId x == idStr
-                newList = L.deleteBy (\x y -> matchId x && matchId y) (AddQuery idStr) old
-                reindexed = zipWith reindex [1..] newList
-                reindex n (AddQuery str) = 
-                    let content = dropWhile (/= '.') str
-                    in AddQuery (show n ++ content)
-                new = State reindexed
-            in
-				if ((id > (length old)) || (id < 1)) then Left "Id not found"
-                else Right (Just (show new), new)
-		
+stateTransition s (AddBookQuery book) =
+    if bookExists book s
+        then Left "Book already exists"
+        else Right (Just (show book ++ " added."), addBook book s)
+
+stateTransition s (RemoveBookQuery book) =
+    if not (bookExists book s)
+        then Left "Book not found."
+        else Right (Just (show book ++ " removed."), removeBook book s)
+
+
+bookExists :: BookInfo -> State -> Bool
+bookExists book s = book `elem` books s
+
+addBook :: BookInfo -> State -> State
+addBook book s = s { books = book : books s }
+
+removeBook :: BookInfo -> State -> State
+removeBook book s = s { books = filter (/= book) (books s) }
+
+
 

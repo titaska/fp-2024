@@ -5,5 +5,5 @@ module Lib1
 -- | This function returns a list of words
 -- to be autocompleted in your program's REPL.
 completions :: [String]
-completions = ["add", "list", "remove"]
+completions = ["add", "remove"]
 

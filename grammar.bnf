@@ -1,17 +1,16 @@
 <commands>    ::= "add" <book> 
                 | "remove" <book>
-                | "list" 
+        
                 
                 
 
-<book>        ::= <title> <author> <genre> <year> <book-id>
+<book>        ::= <title> <author> <genre>
 <title>       ::= <word> | <title> <word>  
-<author>      ::= <name> <surname>
+<author>      ::= <name>
 <name>        ::= <letter> | <name> <letter> 
-<surname>     ::= <letter> | <surname> <letter> 
 <genre>       ::= <letter> | <genre> <letter>  
-<year>        ::= <digit> <digit> <digit> <digit>  
-<book-id>     ::= <number>  
+
+ 
 
 <letter>      ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" 
                 | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" 
