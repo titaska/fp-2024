@@ -1,50 +1,78 @@
 {-# LANGUAGE ImportQualifiedPost #-}
-import Test.Tasty ( TestTree, defaultMain, testGroup )
-import Test.Tasty.HUnit ( testCase, (@?=) )
+{-# LANGUAGE InstanceSigs #-}
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.QuickCheck as QC
 
 import Lib1 qualified
 import Lib2 qualified
+import Lib3 qualified
+
+
+instance Arbitrary Lib2.BookGenre where
+    arbitrary :: Gen Lib2.BookGenre
+    arbitrary = elements [Lib2.Fantasy, Lib2.Scientific, Lib2.Detective, Lib2.Dictionary, Lib2.Fiction]
+
+instance Arbitrary Lib2.BookInfo where
+    arbitrary :: Gen Lib2.BookInfo
+    arbitrary = Lib2.BookInfo 
+        <$> (listOf1 $ elements ['A'..'Z'])
+        <*> (listOf1 $ elements ['A'..'Z']) 
+        <*> arbitrary                                               
+
+instance Arbitrary Lib2.Query where
+    arbitrary :: Gen Lib2.Query
+    arbitrary = 
+        Lib2.AddBookQuery <$> arbitrary  
+
+
+instance Arbitrary Lib3.Statements where
+    arbitrary :: Gen Lib3.Statements
+    arbitrary = oneof [Lib3.Single <$> arbitrary, Lib3.Batch <$> listOf arbitrary]
 
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [unitTests]
+tests = testGroup "Tests" [unitTests, propertyTests]
 
 unitTests :: TestTree
-unitTests = testGroup "Book Store Tests" [
-    testCase "Empty input" $
-        Lib2.parseQuery "" @?= Left "Invalid command",
-    
-    testCase "Invalid command" $
-        Lib2.parseQuery "hello" @?= Left "Invalid command",
-    
-    testCase "Add book - valid input" $
-        Lib2.parseQuery "add \"The Stranger\", Albert Camus, Fiction, 1942" @?= 
-        Right (Lib2.AddQuery "The Stranger, Albert Camus, Fiction, 1942"),
+unitTests = testGroup "Lib1 tests"
+  [ testCase "List of completions is not empty" $
+      null Lib1.completions @?= False,
 
-    testCase "Add book - invalid title" $
-        Lib2.parseQuery "add The Stranger, Albert Camus, Fiction, 1942" @?= 
-        Left "Invalid Title syntax",
+    testCase "Parsing empty query" $
+      Lib2.parseQuery "" @?= Left "No match",
 
-    testCase "Add book - invalid author" $   
-        Lib2.parseQuery "add \"The Stranger\", Albert 111, Fiction, 1942" @?= 
-        Left "Invalid Author",
-    
-    testCase "Add book - invalid year" $
-        Lib2.parseQuery "add \"The Stranger\", Albert Camus, Fiction, 1" @?= 
-        Left "Invalid Year",
-    
-    testCase "Add book - invalid genre" $
-        Lib2.parseQuery "add \"The Stranger\", Albert Camus, aaaaaa, 1942" @?= 
-        Left "Invalid Genre",
-    
-    testCase "Remove - valid id" $
-        Lib2.parseQuery "remove 1" @?= Right (Lib2.RemoveQuery "1"),
-    
-    testCase "Remove - invalid id format" $
-        Lib2.parseQuery "remove abc" @?= Left "Invalid ID",
-    
-    testCase "List command" $
-        Lib2.parseQuery "list" @?= Right Lib2.ListQuery
-    ]
+    testCase "Parsing AddBookQuery" $ 
+      Lib2.parseQuery "add TheStranger AlbertCamus Fiction" @?= 
+        Right (Lib2.AddBookQuery 
+          (Lib2.BookInfo "TheStranger" "AlbertCamus" Lib2.Fiction)
+        ),
+
+    testCase "Parsing RemoveBookQuery" $ 
+      Lib2.parseQuery "remove TheStranger AlbertCamus Fiction" @?= 
+        Right (Lib2.RemoveBookQuery 
+          (Lib2.BookInfo "TheStranger" "AlbertCamus" Lib2.Fiction)
+        ),
+        
+    testCase "Parsing invalid command" $
+      Lib2.parseQuery "invalidCommand" @?= Left "No match"
+  ]
+
+propertyTests :: TestTree
+propertyTests = testGroup "Lib3 Property Tests"
+  [ testCase "Test single" $
+        let s = Lib3.Single (Lib2.AddBookQuery (Lib2.BookInfo "TheStranger" "AlbertCamus" Lib2.Fiction)) 
+         in Lib3.parseStatements (Lib3.renderStatements s) @?= Right (s, ""),
+
+      testCase "Test batch" $
+        let s1 = Lib2.AddBookQuery (Lib2.BookInfo "TheStranger" "AlbertCamus" Lib2.Fiction)
+            s2 = Lib2.AddBookQuery (Lib2.BookInfo "Hobbit" "Tolkien" Lib2.Fiction)
+            b = Lib3.Batch [s1, s2]
+         in Lib3.parseStatements (Lib3.renderStatements b) @?= Right (b, ""),
+
+      QC.testProperty "rendered and parsed" $
+        \s -> Lib3.parseStatements (Lib3.renderStatements s) == Right (s, "")
+       
+  ]
